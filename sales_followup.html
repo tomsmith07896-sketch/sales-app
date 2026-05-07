@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>销售跟进管理系统</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+  :root {
+    --primary: #4f6ef7;
+    --primary-light: #eef1fe;
+    --danger: #ef4444;
+    --danger-light: #fef2f2;
+    --success: #22c55e;
+    --success-light: #f0fdf4;
+    --warning: #f59e0b;
+    --warning-light: #fffbeb;
+    --gray-50: #f9fafb;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-300: #d1d5db;
+    --gray-400: #9ca3af;
+    --gray-500: #6b7280;
+    --gray-600: #4b5563;
+    --gray-700: #374151;
+    --gray-800: #1f2937;
+    --gray-900: #111827;
+    --radius: 10px;
+    --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+    --shadow-md: 0 4px 12px rgba(0,0,0,.1);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", sans-serif; background: var(--gray-50); color: var(--gray-800); line-height: 1.6; }
+  
+  /* Loading */
+  .loading-screen { position: fixed; inset: 0; background: linear-gradient(135deg, #4f6ef7 0%, #7c3aed 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; color: #fff; }
+  .loading-screen .spinner { width: 40px; height: 40px; border: 3px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .8s linear infinite; margin-bottom: 16px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-screen .load-text { font-size: 15px; opacity: .9; }
+
+  /* Login Screen */
+  .login-screen { position: fixed; inset: 0; background: linear-gradient(135deg, #4f6ef7 0%, #7c3aed 100%); display: none; align-items: center; justify-content: center; z-index: 999; }
+  .login-screen.show { display: flex; }
+  .login-box { background: #fff; border-radius: 20px; padding: 36px 28px; width: 400px; max-width: 92vw; box-shadow: 0 25px 80px rgba(0,0,0,.25); text-align: center; }
+  .login-box .logo { font-size: 42px; margin-bottom: 6px; }
+  .login-box h2 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+  .login-box .subtitle { font-size: 13px; color: var(--gray-500); margin-bottom: 20px; }
+  .login-tab-bar { display: flex; gap: 0; margin-bottom: 20px; border-radius: 99px; overflow: hidden; border: 2px solid var(--gray-200); }
+  .login-tab-bar button { flex: 1; padding: 9px 0; border: none; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s; }
+  .login-tab-bar .tab-active { background: var(--primary); color: #fff; }
+  .login-tab-bar .tab-inactive { background: #fff; color: var(--gray-500); }
+  .login-box input { width: 100%; padding: 13px 16px; border: 2px solid var(--gray-200); border-radius: 12px; font-size: 15px; outline: none; transition: border-color .2s; }
+  .login-box input:focus { border-color: var(--primary); }
+  .login-box input[type="password"] { text-align: center; letter-spacing: 6px; font-weight: 600; }
+  .login-error { color: var(--danger); font-size: 13px; margin-top: 10px; min-height: 20px; }
+  .login-hint { font-size: 12px; color: var(--gray-400); margin-top: 12px; }
+  .login-form { display: none; }
+  .login-form.active { display: block; }
+
+  /* App container */
+  #appContainer { display: none; }
+  #appContainer.show { display: block; }
+
+  /* Header */
+  .header { background: linear-gradient(135deg, var(--primary), #7c3aed); color: #fff; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; box-shadow: var(--shadow-md); position: sticky; top: 0; z-index: 50; }
+  .header h1 { font-size: 18px; font-weight: 700; }
+  .header .date { font-size: 12px; opacity: .85; margin-top: 1px; }
+  .header-right { display: flex; align-items: center; gap: 8px; }
+  .user-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; background: rgba(255,255,255,.2); border-radius: 99px; font-size: 12px; }
+  .btn-logout { padding: 5px 12px; border: 1px solid rgba(255,255,255,.4); border-radius: 99px; background: none; color: #fff; font-size: 12px; cursor: pointer; }
+
+  /* Stats bar */
+  .stats-bar { display: flex; gap: 10px; padding: 16px 20px; background: #fff; border-bottom: 1px solid var(--gray-200); }
+  .stat-card { flex: 1; padding: 12px 8px; border-radius: var(--radius); background: var(--gray-50); border: 1px solid var(--gray-200); text-align: center; }
+  .stat-card .num { font-size: 24px; font-weight: 800; }
+  .stat-card .label { font-size: 11px; color: var(--gray-500); margin-top: 1px; }
+  .stat-card.overdue .num { color: var(--danger); }
+  .stat-card.today .num { color: var(--primary); }
+  .stat-card.upcoming .num { color: var(--warning); }
+  .stat-card.done .num { color: var(--success); }
+
+  /* Navigation */
+  .nav { display: flex; gap: 0; padding: 0 20px; background: #fff; border-bottom: 1px solid var(--gray-200); overflow-x: auto; }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav-btn { padding: 11px 16px; border: none; background: none; font-size: 13px; color: var(--gray-500); cursor: pointer; border-bottom: 2px solid transparent; transition: all .2s; font-weight: 500; white-space: nowrap; }
+  .nav-btn:hover { color: var(--primary); }
+  .nav-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+  /* Main content */
+  .main { padding: 16px 20px; max-width: 1200px; margin: 0 auto; padding-bottom: 30px; }
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* Toolbar */
+  .toolbar { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
+  .search-box { flex: 1; min-width: 150px; padding: 9px 14px; border: 1px solid var(--gray-300); border-radius: var(--radius); font-size: 13px; outline: none; transition: border-color .2s; }
+  .search-box:focus { border-color: var(--primary); }
+  select.filter { padding: 9px 12px; border: 1px solid var(--gray-300); border-radius: var(--radius); font-size: 13px; background: #fff; outline: none; cursor: pointer; }
+
+  /* Buttons */
+  .btn { padding: 9px 16px; border: none; border-radius: var(--radius); font-size: 13px; font-weight: 500; cursor: pointer; transition: all .15s; display: inline-flex; align-items: center; gap: 5px; }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-primary:hover { background: #3b5de7; }
+  .btn-success { background: var(--success); color: #fff; }
+  .btn-success:hover { background: #16a34a; }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-danger:hover { background: #dc2626; }
+  .btn-ghost { background: none; color: var(--gray-500); }
+  .btn-ghost:hover { background: var(--gray-100); color: var(--gray-700); }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+  /* Quick add bar */
+  .quick-add { background: #fff; border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 16px; margin-bottom: 16px; }
+  .quick-add .qa-row { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+  .quick-add .qa-group { display: flex; flex-direction: column; flex: 1; min-width: 100px; }
+  .quick-add .qa-group label { font-size: 11px; font-weight: 600; color: var(--gray-500); margin-bottom: 3px; }
+  .quick-add .qa-group input, .quick-add .qa-group select { padding: 8px 10px; border: 1px solid var(--gray-300); border-radius: 8px; font-size: 13px; outline: none; }
+  .quick-add .qa-group input:focus, .quick-add .qa-group select:focus { border-color: var(--primary); }
+  .quick-add .qa-group input[readonly], .quick-add .qa-group select[disabled] { background: var(--gray-100); color: var(--gray-600); }
+  .quick-add .qa-btn-row { display: flex; justify-content: flex-end; }
+
+  /* Table */
+  .table-wrap { background: #fff; border-radius: var(--radius); box-shadow: var(--shadow); overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; min-width: 600px; }
+  th { padding: 10px 12px; text-align: left; font-size: 12px; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: .3px; background: var(--gray-50); border-bottom: 1px solid var(--gray-200); white-space: nowrap; }
+  td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid var(--gray-100); }
+  tr:hover td { background: var(--gray-50); }
+  tr.overdue td { background: var(--danger-light); }
+  tr.today td { background: var(--primary-light); }
+  tr.done td { opacity: .55; }
+  .col-sales { display: none; }
+  .show-sales .col-sales { display: table-cell; }
+
+  /* Card list for mobile */
+  .card-list { display: none; }
+  @media (max-width: 640px) {
+    .table-wrap { display: none; }
+    .card-list { display: block; }
+    .card-item { background: #fff; border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px; margin-bottom: 10px; }
+    .card-item.overdue { border-left: 3px solid var(--danger); }
+    .card-item.today { border-left: 3px solid var(--primary); }
+    .card-item.upcoming { border-left: 3px solid var(--warning); }
+    .card-item.done { opacity: .55; }
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .card-customer { font-size: 15px; font-weight: 700; }
+    .card-sales { font-size: 12px; color: var(--gray-500); }
+    .card-task { font-size: 13px; color: var(--gray-700); margin-bottom: 6px; }
+    .card-meta { display: flex; justify-content: space-between; align-items: center; }
+    .card-date { font-size: 12px; color: var(--gray-500); }
+    .card-actions { display: flex; gap: 6px; }
+  }
+
+  /* Badges */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+  .badge-danger { background: var(--danger-light); color: var(--danger); }
+  .badge-primary { background: var(--primary-light); color: var(--primary); }
+  .badge-warning { background: var(--warning-light); color: var(--warning); }
+  .badge-success { background: var(--success-light); color: var(--success); }
+
+  /* Modal */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 100; align-items: center; justify-content: center; }
+  .modal-overlay.show { display: flex; }
+  .modal { background: #fff; border-radius: 14px; width: 480px; max-width: 95vw; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.2); }
+  .modal-header { padding: 18px 20px 0; display: flex; justify-content: space-between; align-items: center; }
+  .modal-header h2 { font-size: 17px; font-weight: 700; }
+  .modal-close { width: 30px; height: 30px; border: none; background: var(--gray-100); border-radius: 50%; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; }
+  .modal-body { padding: 16px 20px; }
+  .form-group { margin-bottom: 14px; }
+  .form-group label { display: block; font-size: 12px; font-weight: 600; color: var(--gray-600); margin-bottom: 5px; }
+  .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 9px 12px; border: 1px solid var(--gray-300); border-radius: 8px; font-size: 14px; outline: none; font-family: inherit; transition: border-color .2s; }
+  .form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: var(--primary); }
+  .form-group input[readonly] { background: var(--gray-100); color: var(--gray-600); }
+  .form-group textarea { resize: vertical; min-height: 60px; }
+  .form-row { display: flex; gap: 10px; }
+  .form-row .form-group { flex: 1; }
+  .modal-footer { padding: 0 20px 18px; display: flex; justify-content: flex-end; gap: 8px; }
+
+  /* Admin grid */
+  .admin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .admin-card { background: #fff; border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; }
+  .admin-card h3 { font-size: 15px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
+  .admin-card h3 .count { font-size: 12px; font-weight: 600; background: var(--primary-light); color: var(--primary); padding: 2px 8px; border-radius: 99px; }
+  .admin-card .detail { font-size: 12px; color: var(--gray-500); margin-bottom: 6px; }
+  .admin-card .item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--gray-100); font-size: 13px; }
+  .admin-card .item:last-child { border-bottom: none; }
+
+  /* Config panel */
+  .config-panel { background: #fff; border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); margin-bottom: 20px; }
+  .config-panel h3 { font-size: 15px; font-weight: 700; margin-bottom: 12px; }
+  .tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .tag { padding: 5px 12px; background: var(--gray-100); border-radius: 99px; font-size: 12px; display: flex; align-items: center; gap: 5px; }
+  .tag .remove { cursor: pointer; color: var(--gray-400); font-weight: 700; }
+  .tag .remove:hover { color: var(--danger); }
+  .add-row { display: flex; gap: 8px; margin-top: 10px; }
+  .add-row input { flex: 1; padding: 8px 12px; border: 1px solid var(--gray-300); border-radius: 8px; font-size: 13px; outline: none; }
+  .add-row input:focus { border-color: var(--primary); }
+
+  /* Empty state */
+  .empty { text-align: center; padding: 48px 20px; color: var(--gray-400); }
+  .empty .icon { font-size: 42px; margin-bottom: 10px; }
+  .empty p { font-size: 14px; }
+
+  /* Toast */
+  .toast-container { position: fixed; top: 16px; right: 16px; z-index: 200; }
+  .toast { padding: 10px 16px; border-radius: var(--radius); color: #fff; font-size: 13px; margin-bottom: 6px; animation: slideIn .3s ease; box-shadow: var(--shadow-md); }
+  .toast-success { background: var(--success); }
+  .toast-error { background: var(--danger); }
+  @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+  /* Sync indicator */
+  .sync-badge { font-size: 11px; padding: 2px 8px; border-radius: 99px; background: rgba(255,255,255,.2); }
+  .sync-badge.syncing { background: rgba(255,255,255,.35); animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .6; } }
+
+  @media (max-width: 640px) {
+    .header, .stats-bar, .nav, .main { padding-left: 14px; padding-right: 14px; }
+    .stats-bar { gap: 8px; }
+    .stat-card { padding: 10px 6px; }
+    .stat-card .num { font-size: 20px; }
+    .stat-card .label { font-size: 10px; }
+    .admin-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Loading Screen -->
+<div class="loading-screen" id="loadingScreen">
+  <div class="spinner"></div>
+  <div class="load-text">正在连接云服务...</div>
+</div>
+
+<!-- Login Screen -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-box">
+    <div class="logo">📋</div>
+    <h2>销售跟进管理系统</h2>
+    <p class="subtitle">请选择登录方式</p>
+    <div class="login-tab-bar">
+      <button id="tabSales" class="tab-active" onclick="switchLoginTab('sales')">👤 销售登录</button>
+      <button id="tabAdmin" class="tab-inactive" onclick="switchLoginTab('admin')">👑 管理员</button>
+    </div>
+    <div class="login-form active" id="salesLoginForm">
+      <input type="text" id="loginInput" placeholder="输入您的姓名" autocomplete="off" autofocus onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <div class="login-form" id="adminLoginForm">
+      <input type="password" id="adminPwdInput" placeholder="输入管理员密码" autocomplete="off" onkeydown="if(event.key==='Enter')doAdminLogin()">
+    </div>
+    <div class="login-error" id="loginError"></div>
+    <div class="login-hint" id="loginHint">输入姓名登录，仅限团队成员</div>
+  </div>
+</div>
+
+<!-- Main App -->
+<div id="appContainer">
+  <div class="header">
+    <div>
+      <h1>📋 销售跟进</h1>
+      <div class="date" id="headerDate"></div>
+    </div>
+    <div class="header-right">
+      <span class="sync-badge" id="syncBadge">☁️ 已同步</span>
+      <div class="user-badge">
+        <strong id="headerUser"></strong>
+        <span id="headerRole" style="font-size:11px;"></span>
+      </div>
+      <button class="btn-logout" onclick="doLogout()">退出</button>
+    </div>
+  </div>
+
+  <div class="stats-bar">
+    <div class="stat-card overdue"><div class="num" id="statOverdue">0</div><div class="label">已逾期</div></div>
+    <div class="stat-card today"><div class="num" id="statToday">0</div><div class="label">今日待办</div></div>
+    <div class="stat-card upcoming"><div class="num" id="statUpcoming">0</div><div class="label">3天内到期</div></div>
+    <div class="stat-card done"><div class="num" id="statDone">0</div><div class="label">已完成</div></div>
+  </div>
+
+  <div class="nav">
+    <button class="nav-btn active" onclick="switchView('todo',this)">📌 待办</button>
+    <button class="nav-btn" onclick="switchView('all',this)">📊 全部记录</button>
+    <button class="nav-btn admin-only" onclick="switchView('admin',this)" style="display:none;">👥 团队总览</button>
+    <button class="nav-btn admin-only" onclick="switchView('config',this)" style="display:none;">⚙️ 设置</button>
+  </div>
+
+  <div class="main">
+    <!-- Todo View -->
+    <div class="view active" id="view-todo">
+      <div class="quick-add" id="quickAdd">
+        <div class="qa-row">
+          <div class="qa-group"><label>销售</label><select id="qaName"></select></div>
+          <div class="qa-group"><label>客户名称</label><input type="text" id="qaCustomer" placeholder="输入客户名"></div>
+        </div>
+        <div class="qa-row">
+          <div class="qa-group"><label>约定事项</label><input type="text" id="qaTask" placeholder="比如：送报价单"></div>
+          <div class="qa-group" style="max-width:150px;"><label>跟进日期</label><input type="date" id="qaDate"></div>
+        </div>
+        <div class="qa-btn-row"><button class="btn btn-primary" onclick="quickAdd()">+ 添加记录</button></div>
+      </div>
+      <div class="table-wrap" id="todoTableWrap"><table><thead><tr><th>状态</th><th class="col-sales">销售</th><th>客户</th><th>约定事项</th><th>跟进日期</th><th>剩余</th><th>操作</th></tr></thead><tbody id="todoBody"></tbody></table></div>
+      <div class="card-list" id="todoCardList"></div>
+      <div class="empty" id="todoEmpty" style="display:none;"><div class="icon">🎉</div><p>没有待办事项</p></div>
+    </div>
+
+    <!-- All Records View -->
+    <div class="view" id="view-all">
+      <div class="toolbar">
+        <input class="search-box" id="searchInput" placeholder="搜索客户名、事项..." oninput="renderAll()">
+        <select class="filter" id="filterStatus" onchange="renderAll()">
+          <option value="all">全部状态</option>
+          <option value="overdue">已逾期</option>
+          <option value="today">今日待办</option>
+          <option value="upcoming">即将到期</option>
+          <option value="done">已完成</option>
+        </select>
+        <select class="filter admin-filter" id="filterSales" onchange="renderAll()" style="display:none;"><option value="all">全部销售</option></select>
+      </div>
+      <div class="table-wrap" id="allTableWrap"><table><thead><tr><th>状态</th><th class="col-sales">销售</th><th>客户</th><th>约定事项</th><th>跟进日期</th><th>剩余</th><th>操作</th></tr></thead><tbody id="allBody"></tbody></table></div>
+      <div class="card-list" id="allCardList"></div>
+      <div class="empty" id="allEmpty" style="display:none;"><div class="icon">📭</div><p>没有匹配的记录</p></div>
+    </div>
+
+    <!-- Admin View -->
+    <div class="view" id="view-admin">
+      <div class="admin-grid" id="adminGrid"></div>
+      <h3 style="font-size:15px;margin-bottom:10px;">📋 团队跟进明细</h3>
+      <div class="toolbar">
+        <select class="filter" id="adminFilterSales" onchange="renderAdmin()"><option value="all">全部销售</option></select>
+      </div>
+      <div class="table-wrap show-sales" id="adminTableWrap"><table><thead><tr><th>状态</th><th class="col-sales">销售</th><th>客户</th><th>约定事项</th><th>跟进日期</th><th>剩余</th><th>操作</th></tr></thead><tbody id="adminBody"></tbody></table></div>
+    </div>
+
+    <!-- Config View -->
+    <div class="view" id="view-config">
+      <div class="config-panel">
+        <h3>👥 销售人员管理</h3>
+        <p style="font-size:12px;color:var(--gray-500);">添加或删除销售人员</p>
+        <div class="tag-list" id="salesTagList"></div>
+        <div class="add-row">
+          <input type="text" id="newSalesName" placeholder="输入销售姓名" onkeydown="if(event.key==='Enter')addSales()">
+          <button class="btn btn-primary btn-sm" onclick="addSales()">+ 添加</button>
+        </div>
+      </div>
+      <div class="config-panel">
+        <h3>🔐 管理员密码</h3>
+        <p style="font-size:12px;color:var(--gray-500);">默认密码：<strong>admin888</strong>，建议修改</p>
+        <div class="add-row">
+          <input type="text" id="newAdminPwd" placeholder="输入新的管理员密码">
+          <button class="btn btn-primary btn-sm" onclick="changeAdminPwd()">修改密码</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle">编辑跟进记录</h2>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editId">
+      <div class="form-row">
+        <div class="form-group"><label>销售姓名</label><select id="editName"></select></div>
+        <div class="form-group"><label>客户名称</label><input type="text" id="editCustomer"></div>
+      </div>
+      <div class="form-group"><label>约定事项</label><textarea id="editTask"></textarea></div>
+      <div class="form-row">
+        <div class="form-group"><label>下次跟进日期</label><input type="date" id="editDate"></div>
+        <div class="form-group"><label>状态</label><select id="editStatus"><option value="pending">待跟进</option><option value="done">已完成</option></select></div>
+      </div>
+      <div class="form-group"><label>备注（选填）</label><textarea id="editNote" placeholder="备注信息..."></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveEdit()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ========== Supabase Config ==========
+const SB_URL = 'https://kbnxtuwudvumpvcbsfsn.supabase.co';
+const SB_KEY = 'sb_publishable_amkbfiH3KlBdStF7my3ueA_kpGBhazO';
+const TABLE_RECORDS = 'followup_records';
+const TABLE_SETTINGS = 'app_settings';
+
+let sbClient = null;
+let currentUser = null;
+let isAdmin = false;
+let allRecords = [];
+let teamMembers = ['胡洪铭','刘光玉','姜霏','王晶','庄迪','章国树','杜敏锐','金千龙','周玉','潘金杨','张澎浩','颜进廷','卢成诚','崔杰','张雯','宦彦','张天波'];
+let adminPwd = 'admin888';
+
+// ========== Supabase Init ==========
+async function initSupabase() {
+  try {
+    // Supabase UMD SDK 通过 <script> 标签已加载，全局变量名是 window.supabase
+    // createClient 在 window.supabase.createClient
+    const { createClient } = window.supabase;
+    sbClient = createClient(SB_URL, SB_KEY);
+    
+    // 测试连接
+    const { data, error } = await sbClient.from(TABLE_SETTINGS).select('key').limit(1);
+    if (error) throw error;
+    
+    // 加载设置
+    await loadSettings();
+    
+    // 隐藏加载页，显示登录
+    document.getElementById('loadingScreen').style.display = 'none';
+    document.getElementById('loginScreen').classList.add('show');
+    
+    // 尝试自动登录
+    autoLogin();
+  } catch (err) {
+    console.error('Supabase init failed:', err);
+    document.querySelector('.load-text').textContent = '连接失败：' + (err.message || err);
+  }
+}
+
+// ========== Supabase Data Operations ==========
+async function loadSettings() {
+  try {
+    const { data, error } = await sbClient.from(TABLE_SETTINGS).select('*');
+    if (error) throw error;
+    if (data && data.length > 0) {
+      data.forEach(row => {
+        if (row.key === 'team_members') {
+          try { teamMembers = JSON.parse(row.value); } catch { teamMembers = row.value.split(','); }
+        }
+        if (row.key === 'admin_password') {
+          adminPwd = row.value;
+        }
+      });
+    } else {
+      // 第一次使用，插入默认设置
+      await sbClient.from(TABLE_SETTINGS).insert([
+        { key: 'team_members', value: JSON.stringify(teamMembers) },
+        { key: 'admin_password', value: adminPwd }
+      ]);
+    }
+  } catch (err) {
+    console.error('Load settings failed:', err);
+    // 使用默认团队名单
+  }
+}
+
+async function saveSettings() {
+  try {
+    await sbClient.from(TABLE_SETTINGS).update({ value: JSON.stringify(teamMembers) }).eq('key', 'team_members');
+    await sbClient.from(TABLE_SETTINGS).update({ value: adminPwd }).eq('key', 'admin_password');
+  } catch (err) { console.error('Save settings failed:', err); }
+}
+
+async function loadAllRecords() {
+  showSyncBadge('syncing');
+  try {
+    const { data, error } = await sbClient.from(TABLE_RECORDS).select('*').order('followup_date', { ascending: true });
+    if (error) throw error;
+    allRecords = (data || []).map(r => ({
+      _id: r.id,
+      salesName: r.sales_name,
+      customer: r.customer_name,
+      task: r.followup_content,
+      followUpDate: r.followup_date,
+      status: r.status,
+      note: r.note,
+      createdAt: r.created_at
+    }));
+  } catch (err) {
+    console.error('Load records failed:', err);
+    showToast('加载数据失败：' + (err.message || err), 'error');
+  }
+  showSyncBadge('synced');
+}
+
+async function addRecord(record) {
+  showSyncBadge('syncing');
+  try {
+    const { error } = await sbClient.from(TABLE_RECORDS).insert([{
+      sales_name: record.salesName,
+      customer_name: record.customer,
+      followup_content: record.task,
+      followup_date: record.followUpDate,
+      status: record.status,
+      note: record.note
+    }]);
+    if (error) throw error;
+    await loadAllRecords();
+    showToast('记录已添加！');
+  } catch (err) { console.error(err); showToast('添加失败：' + (err.message || err), 'error'); }
+}
+
+async function updateRecord(id, updates) {
+  showSyncBadge('syncing');
+  try {
+    const row = {};
+    if (updates.salesName !== undefined) row.sales_name = updates.salesName;
+    if (updates.customer !== undefined) row.customer_name = updates.customer;
+    if (updates.task !== undefined) row.followup_content = updates.task;
+    if (updates.followUpDate !== undefined) row.followup_date = updates.followUpDate;
+    if (updates.status !== undefined) row.status = updates.status;
+    if (updates.note !== undefined) row.note = updates.note;
+    const { error } = await sbClient.from(TABLE_RECORDS).update(row).eq('id', id);
+    if (error) throw error;
+    await loadAllRecords();
+  } catch (err) { console.error(err); showToast('更新失败：' + (err.message || err), 'error'); }
+}
+
+async function deleteRecordCloud(id) {
+  showSyncBadge('syncing');
+  try {
+    const { error } = await sbClient.from(TABLE_RECORDS).delete().eq('id', id);
+    if (error) throw error;
+    await loadAllRecords();
+    showToast('已删除');
+  } catch (err) { console.error(err); showToast('删除失败：' + (err.message || err), 'error'); }
+}
+
+function showSyncBadge(state) {
+  const el = document.getElementById('syncBadge');
+  if (state === 'syncing') { el.textContent = '⏳ 同步中...'; el.className = 'sync-badge syncing'; }
+  else { el.textContent = '☁️ 已同步'; el.className = 'sync-badge'; }
+}
+
+// ========== Local Session ==========
+const SESSION_KEY = 'sales_followup_session';
+function loadSession() { try { return localStorage.getItem(SESSION_KEY); } catch { return null; } }
+function saveSession(user) { try { localStorage.setItem(SESSION_KEY, user); } catch {} }
+function clearSession() { try { localStorage.removeItem(SESSION_KEY); } catch {} }
+
+// ========== Login ==========
+function switchLoginTab(tab) {
+  const tabSales = document.getElementById('tabSales');
+  const tabAdmin = document.getElementById('tabAdmin');
+  if (tab === 'sales') {
+    tabSales.className = 'tab-active'; tabAdmin.className = 'tab-inactive';
+    document.getElementById('salesLoginForm').className = 'login-form active';
+    document.getElementById('adminLoginForm').className = 'login-form';
+    document.getElementById('loginHint').textContent = '输入姓名登录，仅限团队成员';
+    document.getElementById('loginInput').focus();
+  } else {
+    tabAdmin.className = 'tab-active'; tabSales.className = 'tab-inactive';
+    document.getElementById('adminLoginForm').className = 'login-form active';
+    document.getElementById('salesLoginForm').className = 'login-form';
+    document.getElementById('loginHint').textContent = '管理员通过密码登录';
+    document.getElementById('adminPwdInput').focus();
+  }
+  document.getElementById('loginError').textContent = '';
+}
+
+function doLogin() {
+  const input = document.getElementById('loginInput').value.trim();
+  if (!input) { document.getElementById('loginError').textContent = '请输入姓名'; return; }
+  if (!teamMembers.includes(input)) { document.getElementById('loginError').textContent = '姓名不在团队名单中'; return; }
+  currentUser = input; isAdmin = false;
+  saveSession('sales:' + currentUser);
+  enterApp();
+}
+
+function doAdminLogin() {
+  const input = document.getElementById('adminPwdInput').value.trim();
+  if (!input) { document.getElementById('loginError').textContent = '请输入密码'; return; }
+  if (input !== adminPwd) { document.getElementById('loginError').textContent = '密码错误'; return; }
+  currentUser = 'admin'; isAdmin = true;
+  saveSession('admin');
+  enterApp();
+}
+
+function autoLogin() {
+  const session = loadSession();
+  if (!session) { showLogin(); return; }
+  if (session === 'admin') {
+    currentUser = 'admin'; isAdmin = true; enterApp();
+  } else if (session.startsWith('sales:')) {
+    const name = session.replace('sales:', '');
+    if (teamMembers.includes(name)) { currentUser = name; isAdmin = false; enterApp(); }
+    else { clearSession(); showLogin(); }
+  } else { clearSession(); showLogin(); }
+}
+
+function showLogin() {
+  document.getElementById('loginScreen').classList.add('show');
+}
+
+function enterApp() {
+  document.getElementById('loginScreen').classList.remove('show');
+  document.getElementById('appContainer').classList.add('show');
+  document.getElementById('headerUser').textContent = isAdmin ? '管理员' : currentUser;
+  document.getElementById('headerRole').textContent = isAdmin ? '👑' : '👤';
+  document.querySelectorAll('.admin-only').forEach(el => el.style.display = isAdmin ? '' : 'none');
+  document.querySelectorAll('.admin-filter').forEach(el => el.style.display = isAdmin ? '' : 'none');
+  
+  // Set date
+  const now = new Date();
+  const weekDays = ['日','一','二','三','四','五','六'];
+  document.getElementById('headerDate').textContent = `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} 星期${weekDays[now.getDay()]}`;
+  document.getElementById('qaDate').value = today();
+
+  updateNameSelectors();
+  loadAndRender();
+}
+
+function doLogout() {
+  currentUser = null; isAdmin = false;
+  clearSession();
+  document.getElementById('appContainer').classList.remove('show');
+  document.getElementById('loginInput').value = '';
+  document.getElementById('adminPwdInput').value = '';
+  switchLoginTab('sales');
+  showLogin();
+}
+
+function updateNameSelectors() {
+  const qaName = document.getElementById('qaName');
+  const editName = document.getElementById('editName');
+  const opts = teamMembers.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  
+  if (isAdmin) {
+    qaName.disabled = false;
+    qaName.innerHTML = '<option value="" disabled selected>选择销售</option>' + opts;
+  } else {
+    qaName.disabled = true;
+    qaName.innerHTML = `<option value="${esc(currentUser)}" selected>${esc(currentUser)}</option>`;
+  }
+  editName.innerHTML = opts;
+  
+  const filterOpts = `<option value="all">全部销售</option>` + opts;
+  document.getElementById('filterSales').innerHTML = filterOpts;
+  document.getElementById('adminFilterSales').innerHTML = filterOpts;
+}
+
+// ========== Date Helpers ==========
+function today() { return new Date().toISOString().split('T')[0]; }
+function daysDiff(dateStr) { const d = new Date(dateStr); d.setHours(0,0,0,0); const t = new Date(); t.setHours(0,0,0,0); return Math.ceil((d-t)/86400000); }
+function formatDate(dateStr) { const d = new Date(dateStr); return `${d.getMonth()+1}月${d.getDate()}日`; }
+function getStatus(r) {
+  if (r.status === 'done') return 'done';
+  const diff = daysDiff(r.followUpDate);
+  if (diff < 0) return 'overdue';
+  if (diff === 0) return 'today';
+  if (diff <= 3) return 'upcoming';
+  return 'future';
+}
+function statusBadge(s) {
+  const m = { overdue:['已逾期','badge-danger'], today:['今日','badge-primary'], upcoming:['即将到期','badge-warning'], done:['已完成','badge-success'], future:['待跟进',''] };
+  const [t,c] = m[s]||['','']; return `<span class="badge ${c}">${t}</span>`;
+}
+function daysText(diff) {
+  if (diff < 0) return `<span style="color:var(--danger);font-weight:600;">逾期${Math.abs(diff)}天</span>`;
+  if (diff === 0) return `<span style="color:var(--primary);font-weight:600;">今天</span>`;
+  return `${diff}天后`;
+}
+function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// ========== Data Filtering ==========
+function getMyData() {
+  return isAdmin ? allRecords : allRecords.filter(r => r.salesName === currentUser);
+}
+
+// ========== Render ==========
+async function loadAndRender() {
+  await loadAllRecords();
+  renderAll2();
+}
+
+function renderAll2() {
+  renderStats();
+  renderTodo();
+  renderAll();
+  if (isAdmin) { renderAdmin(); renderConfig(); }
+}
+
+function renderStats() {
+  const data = getMyData();
+  let o=0,t=0,u=0,d=0;
+  data.forEach(r => { const s = getStatus(r); if(s==='overdue')o++; else if(s==='today')t++; else if(s==='upcoming')u++; else if(s==='done')d++; });
+  document.getElementById('statOverdue').textContent = o;
+  document.getElementById('statToday').textContent = t;
+  document.getElementById('statUpcoming').textContent = u;
+  document.getElementById('statDone').textContent = d;
+}
+
+function buildTableRow(record) {
+  const s = getStatus(record); const diff = daysDiff(record.followUpDate);
+  return `<tr class="${s}"><td>${statusBadge(s)}</td>${isAdmin?`<td>${esc(record.salesName)}</td>`:''}<td><strong>${esc(record.customer)}</strong></td><td>${esc(record.task)}${record.note?`<br><span style="color:var(--gray-400);font-size:11px;">${esc(record.note)}</span>`:''}</td><td>${formatDate(record.followUpDate)}</td><td>${daysText(diff)}</td><td>${s!=='done'?`<button class="btn btn-success btn-sm" onclick="markDone('${record._id}')">✓</button> `:''}<button class="btn btn-ghost btn-sm" onclick="openEdit('${record._id}')">✏️</button> <button class="btn btn-ghost btn-sm" onclick="doDelete('${record._id}')" style="color:var(--danger);">🗑</button></td></tr>`;
+}
+
+function buildCardItem(record) {
+  const s = getStatus(record); const diff = daysDiff(record.followUpDate);
+  return `<div class="card-item ${s}"><div class="card-header"><span class="card-customer">${esc(record.customer)}</span>${statusBadge(s)}</div>${isAdmin?`<div class="card-sales">👤 ${esc(record.salesName)}</div>`:''}<div class="card-task">${esc(record.task)}</div><div class="card-meta"><span class="card-date">${formatDate(record.followUpDate)} · ${daysText(diff)}</span><div class="card-actions">${s!=='done'?`<button class="btn btn-success btn-sm" onclick="markDone('${record._id}')">✓</button>`:''}<button class="btn btn-ghost btn-sm" onclick="openEdit('${record._id}')">✏️</button><button class="btn btn-ghost btn-sm" onclick="doDelete('${record._id}')" style="color:var(--danger);">🗑</button></div></div></div>`;
+}
+
+function renderTodo() {
+  const data = getMyData().filter(r => r.status !== 'done').sort((a,b) => new Date(a.followUpDate) - new Date(b.followUpDate));
+  const tbody = document.getElementById('todoBody');
+  const cards = document.getElementById('todoCardList');
+  const empty = document.getElementById('todoEmpty');
+  if (data.length === 0) { tbody.innerHTML = ''; cards.innerHTML = ''; empty.style.display = 'block'; }
+  else { empty.style.display = 'none'; tbody.innerHTML = data.map(r => buildTableRow(r)).join(''); cards.innerHTML = data.map(r => buildCardItem(r)).join(''); }
+}
+
+function renderAll() {
+  const data = getMyData();
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  const statusF = document.getElementById('filterStatus').value;
+  const salesF = document.getElementById('filterSales').value;
+  let filtered = data.filter(r => {
+    if (search && !(r.customer+r.task+r.salesName).toLowerCase().includes(search)) return false;
+    if (statusF !== 'all' && getStatus(r) !== statusF) return false;
+    if (isAdmin && salesF !== 'all' && r.salesName !== salesF) return false;
+    return true;
+  }).sort((a,b) => new Date(a.followUpDate) - new Date(b.followUpDate));
+  const tbody = document.getElementById('allBody');
+  const cards = document.getElementById('allCardList');
+  const empty = document.getElementById('allEmpty');
+  if (filtered.length === 0) { tbody.innerHTML = ''; cards.innerHTML = ''; empty.style.display = 'block'; }
+  else { empty.style.display = 'none'; tbody.innerHTML = filtered.map(r => buildTableRow(r)).join(''); cards.innerHTML = filtered.map(r => buildCardItem(r)).join(''); }
+}
+
+function renderAdmin() {
+  const salesF = document.getElementById('adminFilterSales').value;
+  const grid = document.getElementById('adminGrid');
+  let html = '';
+  teamMembers.forEach(name => {
+    const records = allRecords.filter(r => r.salesName === name && r.status !== 'done');
+    const overdue = records.filter(r => getStatus(r) === 'overdue').length;
+    const todayC = records.filter(r => getStatus(r) === 'today').length;
+    html += `<div class="admin-card"><h3>${esc(name)} <span class="count">${records.length} 条待办</span></h3><div class="detail">${overdue>0?`<span style="color:var(--danger);font-weight:600;">⚠️ ${overdue} 条逾期</span> · `:''}${todayC>0?`<span style="color:var(--primary);font-weight:600;">📌 ${todayC} 条今日</span>`:(records.length===0?'暂无待办':'正常')}</div>${records.sort((a,b)=>new Date(a.followUpDate)-new Date(b.followUpDate)).slice(0,3).map(r=>`<div class="item"><span>${esc(r.customer)}</span><span>${statusBadge(getStatus(r))} ${formatDate(r.followUpDate)}</span></div>`).join('')}${records.length>3?`<div style="font-size:11px;color:var(--gray-400);margin-top:6px;">还有 ${records.length-3} 条...</div>`:''}</div>`;
+  });
+  grid.innerHTML = html;
+  let filtered = allRecords.filter(r => r.status !== 'done');
+  if (salesF !== 'all') filtered = filtered.filter(r => r.salesName === salesF);
+  filtered.sort((a,b) => new Date(a.followUpDate) - new Date(b.followUpDate));
+  document.getElementById('adminBody').innerHTML = filtered.map(r => buildTableRow(r)).join('');
+}
+
+function renderConfig() {
+  document.getElementById('salesTagList').innerHTML = teamMembers.map(n => `<div class="tag">${esc(n)} <span class="remove" onclick="removeSales('${esc(n)}')">×</span></div>`).join('');
+}
+
+// ========== Actions ==========
+async function quickAdd() {
+  const name = document.getElementById('qaName').value;
+  const customer = document.getElementById('qaCustomer').value.trim();
+  const task = document.getElementById('qaTask').value.trim();
+  const date = document.getElementById('qaDate').value;
+  if (!name || !customer || !task || !date) { showToast('请填写所有项', 'error'); return; }
+  await addRecord({ salesName: name, customer, task, followUpDate: date, status: 'pending', note: '' });
+  document.getElementById('qaCustomer').value = '';
+  document.getElementById('qaTask').value = '';
+  renderAll2();
+}
+
+async function markDone(id) {
+  await updateRecord(id, { status: 'done' });
+  showToast('已标记完成！');
+  renderAll2();
+}
+
+function doDelete(id) {
+  if (!confirm('确认删除这条记录？')) return;
+  deleteRecordCloud(id).then(() => renderAll2());
+}
+
+function openEdit(id) {
+  const r = allRecords.find(x => x._id === id);
+  if (!r) return;
+  document.getElementById('editId').value = r._id;
+  if (isAdmin) { document.getElementById('editName').disabled = false; document.getElementById('editName').value = r.salesName; }
+  else { document.getElementById('editName').disabled = true; document.getElementById('editName').innerHTML = `<option value="${esc(currentUser)}">${esc(currentUser)}</option>`; }
+  document.getElementById('editCustomer').value = r.customer;
+  document.getElementById('editTask').value = r.task;
+  document.getElementById('editDate').value = r.followUpDate;
+  document.getElementById('editStatus').value = r.status === 'done' ? 'done' : 'pending';
+  document.getElementById('editNote').value = r.note || '';
+  document.getElementById('modalTitle').textContent = '编辑跟进记录';
+  document.getElementById('editModal').classList.add('show');
+}
+
+function closeModal() { document.getElementById('editModal').classList.remove('show'); }
+
+async function saveEdit() {
+  const id = document.getElementById('editId').value;
+  const updates = {
+    salesName: isAdmin ? document.getElementById('editName').value : currentUser,
+    customer: document.getElementById('editCustomer').value.trim(),
+    task: document.getElementById('editTask').value.trim(),
+    followUpDate: document.getElementById('editDate').value,
+    status: document.getElementById('editStatus').value,
+    note: document.getElementById('editNote').value.trim()
+  };
+  await updateRecord(id, updates);
+  closeModal(); showToast('已保存！');
+  renderAll2();
+}
+
+async function addSales() {
+  const name = document.getElementById('newSalesName').value.trim();
+  if (!name) return;
+  if (teamMembers.includes(name)) { showToast('该销售已存在', 'error'); return; }
+  teamMembers.push(name);
+  await saveSettings();
+  document.getElementById('newSalesName').value = '';
+  updateNameSelectors();
+  showToast(`已添加：${name}`);
+  renderAll2();
+}
+
+async function removeSales(name) {
+  if (!confirm(`确认删除「${name}」？已有记录不会被删除。`)) return;
+  teamMembers = teamMembers.filter(n => n !== name);
+  await saveSettings();
+  updateNameSelectors();
+  showToast(`已删除：${name}`);
+  renderAll2();
+}
+
+async function changeAdminPwd() {
+  const pwd = document.getElementById('newAdminPwd').value.trim();
+  if (!pwd || pwd.length < 4) { showToast('密码至少4位', 'error'); return; }
+  adminPwd = pwd;
+  await saveSettings();
+  document.getElementById('newAdminPwd').value = '';
+  showToast('密码已修改！');
+}
+
+// ========== Navigation ==========
+function switchView(view, btnEl) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(`view-${view}`).classList.add('active');
+  if (btnEl) btnEl.classList.add('active');
+  if (view === 'all') renderAll();
+  if (view === 'admin') renderAdmin();
+  if (view === 'config') renderConfig();
+}
+
+// ========== Toast ==========
+function showToast(msg, type='success') {
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = `toast toast-${type}`; t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 2500);
+}
+
+// ========== Init ==========
+initSupabase();
+</script>
+</body>
+</html>
