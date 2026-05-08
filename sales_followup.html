@@ -768,7 +768,7 @@ function doDelete(id) {
 }
 
 function openEdit(id) {
-  const r = allRecords.find(x => x._id === id);
+  const r = allRecords.find(x => String(x._id) === String(id));
   if (!r) return;
   document.getElementById('editId').value = r._id;
   if (isAdmin) { document.getElementById('editName').disabled = false; document.getElementById('editName').value = r.salesName; }
