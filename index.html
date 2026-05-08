@@ -299,7 +299,7 @@
         </div>
         <div class="qa-btn-row"><button class="btn btn-primary" onclick="quickAdd()">+ 添加记录</button></div>
       </div>
-      <div class="table-wrap" id="todoTableWrap"><table><thead><tr><th>状态</th><th class="col-sales">销售</th><th>客户</th><th>约定事项</th><th>跟进日期</th><th>剩余</th><th>操作</th></tr></thead><tbody id="todoBody"></tbody></table></div>
+      <div class="table-wrap" id="todoTableWrap"><table><thead><tr><th>状态</th><th class="col-sales">销售</th><th>客户</th><th>约定事项</th><th>跟进日期</th><th>登记日期</th><th>剩余</th><th>操作</th></tr></thead><tbody id="todoBody"></tbody></table></div>
       <div class="card-list" id="todoCardList"></div>
       <div class="empty" id="todoEmpty" style="display:none;"><div class="icon">🎉</div><p>没有待办事项</p></div>
     </div>
@@ -317,7 +317,7 @@
         </select>
         <select class="filter admin-filter" id="filterSales" onchange="renderAll()" style="display:none;"><option value="all">全部销售</option></select>
       </div>
-      <div class="table-wrap" id="allTableWrap"><table><thead><tr><th>状态</th><th class="col-sales">销售</th><th>客户</th><th>约定事项</th><th>跟进日期</th><th>剩余</th><th>操作</th></tr></thead><tbody id="allBody"></tbody></table></div>
+      <div class="table-wrap" id="allTableWrap"><table><thead><tr><th>状态</th><th class="col-sales">销售</th><th>客户</th><th>约定事项</th><th>跟进日期</th><th>登记日期</th><th>剩余</th><th>操作</th></tr></thead><tbody id="allBody"></tbody></table></div>
       <div class="card-list" id="allCardList"></div>
       <div class="empty" id="allEmpty" style="display:none;"><div class="icon">📭</div><p>没有匹配的记录</p></div>
     </div>
@@ -329,7 +329,7 @@
       <div class="toolbar">
         <select class="filter" id="adminFilterSales" onchange="renderAdmin()"><option value="all">全部销售</option></select>
       </div>
-      <div class="table-wrap show-sales" id="adminTableWrap"><table><thead><tr><th>状态</th><th class="col-sales">销售</th><th>客户</th><th>约定事项</th><th>跟进日期</th><th>剩余</th><th>操作</th></tr></thead><tbody id="adminBody"></tbody></table></div>
+      <div class="table-wrap show-sales" id="adminTableWrap"><table><thead><tr><th>状态</th><th class="col-sales">销售</th><th>客户</th><th>约定事项</th><th>跟进日期</th><th>登记日期</th><th>剩余</th><th>操作</th></tr></thead><tbody id="adminBody"></tbody></table></div>
     </div>
 
     <!-- Config View -->
@@ -690,12 +690,14 @@ function renderStats() {
 
 function buildTableRow(record) {
   const s = getStatus(record); const diff = daysDiff(record.followUpDate);
-  return `<tr class="${s}"><td>${statusBadge(s)}</td>${isAdmin?`<td>${esc(record.salesName)}</td>`:''}<td><strong>${esc(record.customer)}</strong></td><td>${esc(record.task)}${record.note?`<br><span style="color:var(--gray-400);font-size:11px;">${esc(record.note)}</span>`:''}</td><td>${formatDate(record.followUpDate)}</td><td>${daysText(diff)}</td><td>${s!=='done'?`<button class="btn btn-success btn-sm" onclick="markDone('${record._id}')">✓</button> `:''}<button class="btn btn-ghost btn-sm" onclick="openEdit('${record._id}')">✏️</button> <button class="btn btn-ghost btn-sm" onclick="doDelete('${record._id}')" style="color:var(--danger);">🗑</button></td></tr>`;
+  const createdStr = record.createdAt ? formatDate(record.createdAt) : '-';
+  return `<tr class="${s}"><td>${statusBadge(s)}</td>${isAdmin?`<td>${esc(record.salesName)}</td>`:''}<td><strong>${esc(record.customer)}</strong></td><td>${esc(record.task)}${record.note?`<br><span style="color:var(--gray-400);font-size:11px;">${esc(record.note)}</span>`:''}</td><td>${formatDate(record.followUpDate)}</td><td style="color:var(--gray-400);font-size:12px;">${createdStr}</td><td>${daysText(diff)}</td><td>${s!=='done'?`<button class="btn btn-success btn-sm" onclick="markDone('${record._id}')">✓</button> `:''}<button class="btn btn-ghost btn-sm" onclick="openEdit('${record._id}')">✏️</button> <button class="btn btn-ghost btn-sm" onclick="doDelete('${record._id}')" style="color:var(--danger);">🗑</button></td></tr>`;
 }
 
 function buildCardItem(record) {
   const s = getStatus(record); const diff = daysDiff(record.followUpDate);
-  return `<div class="card-item ${s}"><div class="card-header"><span class="card-customer">${esc(record.customer)}</span>${statusBadge(s)}</div>${isAdmin?`<div class="card-sales">👤 ${esc(record.salesName)}</div>`:''}<div class="card-task">${esc(record.task)}</div><div class="card-meta"><span class="card-date">${formatDate(record.followUpDate)} · ${daysText(diff)}</span><div class="card-actions">${s!=='done'?`<button class="btn btn-success btn-sm" onclick="markDone('${record._id}')">✓</button>`:''}<button class="btn btn-ghost btn-sm" onclick="openEdit('${record._id}')">✏️</button><button class="btn btn-ghost btn-sm" onclick="doDelete('${record._id}')" style="color:var(--danger);">🗑</button></div></div></div>`;
+  const createdStr = record.createdAt ? formatDate(record.createdAt) : '';
+  return `<div class="card-item ${s}"><div class="card-header"><span class="card-customer">${esc(record.customer)}</span>${statusBadge(s)}</div>${isAdmin?`<div class="card-sales">👤 ${esc(record.salesName)}</div>`:''}<div class="card-task">${esc(record.task)}</div><div class="card-meta"><span class="card-date">${formatDate(record.followUpDate)} · ${daysText(diff)}</span>${createdStr?`<span class="card-date" style="color:var(--gray-400);">登记: ${createdStr}</span>`:''}<div class="card-actions">${s!=='done'?`<button class="btn btn-success btn-sm" onclick="markDone('${record._id}')">✓</button>`:''}<button class="btn btn-ghost btn-sm" onclick="openEdit('${record._id}')">✏️</button><button class="btn btn-ghost btn-sm" onclick="doDelete('${record._id}')" style="color:var(--danger);">🗑</button></div></div></div>`;
 }
 
 // ========== Status Filter from Stats ==========
