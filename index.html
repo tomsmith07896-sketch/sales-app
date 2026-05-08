@@ -71,13 +71,16 @@
 
   /* Stats bar */
   .stats-bar { display: flex; gap: 10px; padding: 16px 20px; background: #fff; border-bottom: 1px solid var(--gray-200); }
-  .stat-card { flex: 1; padding: 12px 8px; border-radius: var(--radius); background: var(--gray-50); border: 1px solid var(--gray-200); text-align: center; }
+  .stat-card { flex: 1; padding: 12px 8px; border-radius: var(--radius); background: var(--gray-50); border: 1px solid var(--gray-200); text-align: center; cursor: pointer; transition: all .15s; user-select: none; }
+  .stat-card:hover { border-color: var(--gray-400); background: #fff; }
   .stat-card .num { font-size: 24px; font-weight: 800; }
   .stat-card .label { font-size: 11px; color: var(--gray-500); margin-top: 1px; }
   .stat-card.overdue .num { color: var(--danger); }
   .stat-card.today .num { color: var(--primary); }
   .stat-card.upcoming .num { color: var(--warning); }
   .stat-card.done .num { color: var(--success); }
+  .stat-card.active { border-color: var(--primary); background: var(--primary-light); box-shadow: 0 0 0 2px rgba(79,110,247,.15); }
+  .stat-card.active .label { color: var(--primary); font-weight: 600; }
 
   /* Navigation */
   .nav { display: flex; gap: 0; padding: 0 20px; background: #fff; border-bottom: 1px solid var(--gray-200); overflow-x: auto; }
@@ -269,10 +272,10 @@
   </div>
 
   <div class="stats-bar">
-    <div class="stat-card overdue"><div class="num" id="statOverdue">0</div><div class="label">已逾期</div></div>
-    <div class="stat-card today"><div class="num" id="statToday">0</div><div class="label">今日待办</div></div>
-    <div class="stat-card upcoming"><div class="num" id="statUpcoming">0</div><div class="label">3天内到期</div></div>
-    <div class="stat-card done"><div class="num" id="statDone">0</div><div class="label">已完成</div></div>
+    <div class="stat-card overdue" onclick="filterByStat('overdue',this)"><div class="num" id="statOverdue">0</div><div class="label">已逾期</div></div>
+    <div class="stat-card today" onclick="filterByStat('today',this)"><div class="num" id="statToday">0</div><div class="label">今日待办</div></div>
+    <div class="stat-card upcoming" onclick="filterByStat('upcoming',this)"><div class="num" id="statUpcoming">0</div><div class="label">3天内到期</div></div>
+    <div class="stat-card done" onclick="filterByStat('done',this)"><div class="num" id="statDone">0</div><div class="label">已完成</div></div>
   </div>
 
   <div class="nav">
@@ -695,8 +698,32 @@ function buildCardItem(record) {
   return `<div class="card-item ${s}"><div class="card-header"><span class="card-customer">${esc(record.customer)}</span>${statusBadge(s)}</div>${isAdmin?`<div class="card-sales">👤 ${esc(record.salesName)}</div>`:''}<div class="card-task">${esc(record.task)}</div><div class="card-meta"><span class="card-date">${formatDate(record.followUpDate)} · ${daysText(diff)}</span><div class="card-actions">${s!=='done'?`<button class="btn btn-success btn-sm" onclick="markDone('${record._id}')">✓</button>`:''}<button class="btn btn-ghost btn-sm" onclick="openEdit('${record._id}')">✏️</button><button class="btn btn-ghost btn-sm" onclick="doDelete('${record._id}')" style="color:var(--danger);">🗑</button></div></div></div>`;
 }
 
+// ========== Status Filter from Stats ==========
+let activeStatFilter = null;
+
+function filterByStat(status, el) {
+  // 如果点的是已激活的，取消筛选
+  if (activeStatFilter === status) {
+    activeStatFilter = null;
+    document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active'));
+  } else {
+    activeStatFilter = status;
+    document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active'));
+    el.classList.add('active');
+  }
+  renderTodo();
+}
+
 function renderTodo() {
-  const data = getMyData().filter(r => r.status !== 'done').sort((a,b) => new Date(a.followUpDate) - new Date(b.followUpDate));
+  let data = getMyData().filter(r => r.status !== 'done').sort((a,b) => new Date(a.followUpDate) - new Date(b.followUpDate));
+  // 如果筛选了已完成状态，从全量数据取
+  if (activeStatFilter === 'done') {
+    data = getMyData().filter(r => r.status === 'done').sort((a,b) => new Date(a.followUpDate) - new Date(b.followUpDate));
+  }
+  // 按状态筛选
+  if (activeStatFilter && activeStatFilter !== 'done') {
+    data = data.filter(r => getStatus(r) === activeStatFilter);
+  }
   const tbody = document.getElementById('todoBody');
   const cards = document.getElementById('todoCardList');
   const empty = document.getElementById('todoEmpty');
